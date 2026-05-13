@@ -44,17 +44,41 @@ if(PDFIUM_FOUND AND NOT TARGET PDFIUM::pdfium)
     set_target_properties(PDFIUM::pdfium PROPERTIES
         IMPORTED_LOCATION "${PDFIUM_LIBRARY}")
 
-    if(APPLE AND PDFIUM_LIBRARY MATCHES "\\.a$")
-        get_filename_component(_PDFIUM_LIBDIR "${PDFIUM_LIBRARY}" DIRECTORY)
-        set(_PDFIUM_INTERFACE_LIBRARIES
-            "c++"
-            "-framework CoreGraphics")
+    if(PDFIUM_LIBRARY MATCHES "\\.a$")
+        set_target_properties(PDFIUM::pdfium PROPERTIES
+            IMPORTED_LINK_INTERFACE_LANGUAGES "CXX")
+
+        set(_PDFIUM_INTERFACE_LIBRARIES)
+        if(APPLE)
+            get_filename_component(_PDFIUM_LIBDIR "${PDFIUM_LIBRARY}" DIRECTORY)
+            list(APPEND _PDFIUM_INTERFACE_LIBRARIES
+                "c++"
+                "-framework CoreGraphics")
+        elseif(UNIX)
+            foreach(_PDFIUM_CXX_LIBRARY IN LISTS CMAKE_CXX_IMPLICIT_LINK_LIBRARIES)
+                if(_PDFIUM_CXX_LIBRARY MATCHES "^(stdc\\+\\+|supc\\+\\+|c\\+\\+|c\\+\\+abi)$")
+                    list(APPEND _PDFIUM_INTERFACE_LIBRARIES "${_PDFIUM_CXX_LIBRARY}")
+                endif()
+            endforeach()
+
+            if(NOT _PDFIUM_INTERFACE_LIBRARIES)
+                if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_FLAGS MATCHES "(^| )-stdlib=libc\\+\\+")
+                    list(APPEND _PDFIUM_INTERFACE_LIBRARIES "c++" "c++abi")
+                else()
+                    list(APPEND _PDFIUM_INTERFACE_LIBRARIES "stdc++")
+                endif()
+            endif()
+        endif()
+
         if(PDFIUM_EXTRA_LIBRARIES)
             list(APPEND _PDFIUM_INTERFACE_LIBRARIES ${PDFIUM_EXTRA_LIBRARIES})
         endif()
 
-        set_target_properties(PDFIUM::pdfium PROPERTIES
-            INTERFACE_LINK_LIBRARIES "${_PDFIUM_INTERFACE_LIBRARIES}")
+        if(_PDFIUM_INTERFACE_LIBRARIES)
+            list(REMOVE_DUPLICATES _PDFIUM_INTERFACE_LIBRARIES)
+            set_target_properties(PDFIUM::pdfium PROPERTIES
+                INTERFACE_LINK_LIBRARIES "${_PDFIUM_INTERFACE_LIBRARIES}")
+        endif()
     endif()
 
     if(PDFIUM_INCLUDE_DIR)
